@@ -1,89 +1,74 @@
-//The Thing Network Node.js SDK
+//BTracker MQTT Application
+// - We have a ttnClient communicate with the Thing Network
+// - We have socket.io to communicate with BtrackerWEB and BTrackerAPP
+// - We create a Express server to run this on port 4001
 
-//Create a MQTT client connected to our thing network application
+//Settings
 const appId = '628799427265176';
 const accessKey = 'ttn-account-v2.llxrO7pihjYSaatgK--0dEYPb0yIxUVaMh5Isqq95Xo';
 const url = 'eu.thethings.network:1883';
-const port = process.env.PORT || 4001;
-const ttn = require('ttn');
-var ttnClient = new ttn.DataClient(appId, accessKey, url);
 
-//Create a http server using express
+//Required module
+const ttn = require('ttn');
 const express = require("express");
 const http = require("http");
+
+//Create Express server
+const port = process.env.PORT || 4001;
 const indexPage = require("./routes/index");
 const app = express();
 app.use(indexPage);
 const server = http.createServer(app);
 server.listen(port, () => console.log(`Listening on port ${port}`));
 
-//Create socker.io client that will use this server
-const socket = require("socket.io")(server, {
-    handlePreflightRequest: (req, res) => {
-        const headers = {
-            "Access-Control-Allow-Headers": "Content-Type, Authorization",
-            "Access-Control-Allow-Origin": req.headers.origin, 
-            "Access-Control-Allow-Credentials": true
-        };
-        res.writeHead(200, headers);
-        res.end();
-    }
-});
+const socket = require("socket.io")(server, { handlePreflightRequest: (req, res) => { const headers = { "Access-Control-Allow-Headers": "Content-Type, Authorization", "Access-Control-Allow-Origin": req.headers.origin, "Access-Control-Allow-Credentials": true }; res.writeHead(200, headers); res.end(); } });
 
-//Open connection HERE!!
+//Create ttnClient
+const ttnClient = new ttn.DataClient(appId, accessKey, url);
+
+//Open connection to BTrackerWEB and BTrackerAPP
 socket.on("connection", socket => {
-
+    //Subscribe to uplink event from TheThinNetwork
     ttnClient.on("uplink", function (devID, payload) {
-       console.log("Received uplink from : ", devID)
-       obj = JSON.stringify(payload);
-       obj2 = JSON.parse(obj);
-       socket.emit("FromLoraTracker", obj2.hardware_serial);
+        console.log("Received uplink from : ", devID)
+        obj = JSON.stringify(payload);
+        obj2 = JSON.parse(obj);
+        socket.emit("FromLoraTracker", obj2.hardware_serial);
     })
 
-    socket.on('addNewDevice', function(devEUI){ 
-        console.log("Received downlink from BTracker" , devEUI);
-        regiterNewDevice();
-     });
+    //Subscribe to add new tracker from BTrackerX
+    socket.on('addDevice', function (payload) {
+        console.log("Add new device", payload);
+        regiterNewDevice(payload);
+    });
 });
-
-//For debbuging
-// ttnClient.on("uplink", function (devID, payload) {
-//     console.log("Received uplink from : ", devID)
-//     obj = JSON.stringify(payload);
-//     obj2 = JSON.parse(obj);
-//  })
 
 //Asynch method to register a new device
-const regiterNewDevice = async function (EUI) {
-    const application = await ttn.application(appId, accessKey)
+const regiterNewDevice = async function (payload) {
+    const ttnApplication = await ttn.application(appId, accessKey)
 
-   const euis = await application.getEUIs();
-   const devices = await application.devices();
-   const newDeviceId = "test" + (devices.length + 1).toString();
-    
-   // register a new device
-    await application.registerDevice(newDeviceId, {
-      description: "Description",
-      appEui: euis[0],
-      devEui: "9988776655443324",
-      nwkSKey: ttn.key(16),
-      appSKey: ttn.key(16),
-      appKey: ttn.key(16),
-      
+    obj = JSON.stringify(payload);
+    obj2 = JSON.parse(obj);
+
+    const devEUI = obj2.EUI;
+    const devDescription = obj2.Description;
+    const euis = await ttnApplication.getEUIs();
+    const devices = await ttnApplication.devices();
+    const newDeviceId = "test" + (devices.length + 1).toString();
+
+    // register a new device
+    await ttnApplication.registerDevice(newDeviceId, {
+        description: devDescription,
+        appEui: euis[0],
+        devEui: devEUI,
+        nwkSKey: ttn.key(16),
+        appSKey: ttn.key(16),
+        appKey: ttn.key(16),
+
+    }).then((quote) => {
+        socket.emit("addDeviceSucceeded");
+    }).catch(function (err) {
+        console.log(err.details);
+        socket.emit("addDeviceFail", err.details);
     })
 }
-
-regiterNewDevice("abc").catch(function (err) {
-    console.error(err)
-    process.exit(1)
-  })
-
-
-
-
-
-
-
-
-
-		
