@@ -43,7 +43,7 @@ socket.on("connection", socket => {
     });
 });
 
-//Asynch method to register a new device
+//Async method to register a new device
 const regiterNewDevice = async function (payload) {
     const ttnApplication = await ttn.application(appId, accessKey)
 
@@ -54,7 +54,7 @@ const regiterNewDevice = async function (payload) {
     const devDescription = obj2.Description;
     const euis = await ttnApplication.getEUIs();
     const devices = await ttnApplication.devices();
-    const newDeviceId = "test" + (devices.length + 1).toString();
+    const devID = "test" + (devices.length + 1).toString();  //devID should have min 2 caracters
 
     // register a new device
     await ttnApplication.registerDevice(newDeviceId, {
@@ -66,9 +66,8 @@ const regiterNewDevice = async function (payload) {
         appKey: ttn.key(16),
 
     }).then((quote) => {
-        socket.emit("addDeviceSucceeded");
+        socket.emit("addDeviceSucceeded", devID);
     }).catch(function (err) {
-        console.log(err.details);
         socket.emit("addDeviceFail", err.details);
     })
 }
