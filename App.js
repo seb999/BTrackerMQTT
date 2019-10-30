@@ -12,6 +12,7 @@ const url = 'eu.thethings.network:1883';
 const ttn = require('ttn');
 const express = require("express");
 const http = require("http");
+const uuidv1 = require('uuid/v1');
 
 //Create Express server
 const port = process.env.PORT || 4001;
@@ -53,11 +54,10 @@ const regiterNewDevice = async function (payload) {
     const devEUI = obj2.EUI;
     const devDescription = obj2.Description;
     const euis = await ttnApplication.getEUIs();
-    const devices = await ttnApplication.devices();
-    const devID = "test" + (devices.length + 1).toString();  //devID should have min 2 caracters
+    const devID = uuidv1(); //Generate GUID for devID
 
     // register a new device
-    await ttnApplication.registerDevice(newDeviceId, {
+    await ttnApplication.registerDevice(devID, {
         description: devDescription,
         appEui: euis[0],
         devEui: devEUI,
@@ -68,6 +68,7 @@ const regiterNewDevice = async function (payload) {
     }).then((quote) => {
         socket.emit("addDeviceSucceeded", devID);
     }).catch(function (err) {
+        console.log(err.details);
         socket.emit("addDeviceFail", err.details);
     })
 }
