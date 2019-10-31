@@ -34,18 +34,32 @@ socket.on("connection", socket => {
         console.log("Received uplink from : ", devID)
         obj = JSON.stringify(payload);
         obj2 = JSON.parse(obj);
-        socket.emit("FromLoraTracker", obj2.hardware_serial);
+        socket.emit("ttnMotionDetected", obj2.hardware_serial);
     })
 
-    //Subscribe to add new tracker from BTrackerX
-    socket.on('addDevice', function (payload) {
+    //Subscribe to ADD tracker from BTrackerX
+    socket.on('ttnAddDevice', function (payload) {
         console.log("Add new device", payload);
-        regiterNewDevice(payload);
+        regiterDevice(payload);
+    });
+
+     //Subscribe to UPDATE tracker from BTracker
+     socket.on('ttnUpdateDevice', function (payload) {
+        console.log("Update device", payload);
+        updateDevice(payload);
+    });
+
+    //Subscribe to DELETE tracker from BTracker
+    socket.on('ttnDeleteDevice', function (payload) {
+        console.log("Delete device", payload);
+        deleteDevice(payload);
     });
 });
 
-//Async method to register a new device
-const regiterNewDevice = async function (payload) {
+/////////////////////////////////////
+//Async method to REGISTER a device//
+/////////////////////////////////////
+const regiterDevice = async function (payload) {
     const ttnApplication = await ttn.application(appId, accessKey)
 
     obj = JSON.stringify(payload);
@@ -65,10 +79,57 @@ const regiterNewDevice = async function (payload) {
         appSKey: ttn.key(16),
         appKey: ttn.key(16),
 
-    }).then((quote) => {
-        socket.emit("addDeviceSucceeded", devID);
+    }).then((e) => {
+        socket.emit("ttnAddSucceeded", devID);
     }).catch(function (err) {
         console.log(err.details);
-        socket.emit("addDeviceFail", err.details);
+        socket.emit("ttnAddFail", err.details);
+    })
+}
+
+/////////////////////////////////////
+//Async method to UPDATE a device//
+/////////////////////////////////////
+const updateDevice = async function (payload) {
+    const ttnApplication = await ttn.application(appId, accessKey)
+
+    obj = JSON.stringify(payload);
+    obj2 = JSON.parse(obj);
+
+    const devEUI = obj2.EUI;
+    const devDescription = obj2.Description;
+    const devID = obj2.devID
+    const euis = await ttnApplication.getEUIs();
+   
+
+    // register a new device
+    await ttnApplication.updateDevice(devID, {
+        description: devDescription,
+        appEui: euis[0],
+        devEui: devEUI,
+        nwkSKey: ttn.key(16),
+        appSKey: ttn.key(16),
+        appKey: ttn.key(16),
+
+    }).then((e) => {
+        socket.emit("ttnUpdateSucceeded", devID);
+    }).catch(function (err) {
+        console.log(err.details);
+        socket.emit("ttnUpdateFail", err.details);
+    })
+}
+
+///////////////////////////////////
+//Async method to DELETE a device//
+///////////////////////////////////
+const deleteDevice = async function (devId) {
+    const ttnApplication = await ttn.application(appId, accessKey)
+    const euis = await ttnApplication.getEUIs();
+
+    // delete device
+    await ttnApplication.deleteDevice(devId).then(() => {
+        console.log("Deleted done!");
+    }).catch(function (err) {
+        console.log("Deleted fail: ", err.details);
     })
 }
