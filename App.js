@@ -27,8 +27,14 @@ const socket = require("socket.io")(server, { handlePreflightRequest: (req, res)
 //Create ttnClient
 const ttnClient = new ttn.DataClient(appId, accessKey, url);
 
+var socketlist = [];
+
 //Open connection to BTrackerWEB and BTrackerAPP
 socket.on("connection", socket => {
+    socketlist.push(socket);
+    //socket.Disconnect(true);
+    //process.exit(1)
+    console.log("subscribe again", socketlist.length);
     //Subscribe to uplink event from TheThinNetwork
     ttnClient.on("uplink", function (devID, payload) {
         console.log("Received uplink from : ", devID)
@@ -54,6 +60,10 @@ socket.on("connection", socket => {
         console.log("Delete device", payload);
         deleteDevice(payload);
     });
+
+    socket.on('disconnect', function() {
+        console.log('Disconnected')
+      })
 });
 
 /////////////////////////////////////
