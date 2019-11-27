@@ -139,7 +139,9 @@ const deleteDevice = async function (devId) {
     // delete device
     await ttnApplication.deleteDevice(devId).then(() => {
         console.log("Deleted done!");
+        socket.emit("ttnDeleteSucceeded", devID);
     }).catch(function (err) {
         console.log("Deleted fail: ", err.details);
+        socket.emit("ttnDeleteFail", err.details);
     })
 }
