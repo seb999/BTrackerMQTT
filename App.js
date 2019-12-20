@@ -133,13 +133,11 @@ const updateDevice = async function (payload) {
 //Async method to DELETE a device//
 ///////////////////////////////////
 const deleteDevice = async function (devId) {
-    const ttnApplication = await ttn.application(appId, accessKey)
-    const euis = await ttnApplication.getEUIs();
-
+    const ttnApplication = await ttn.application(appId, accessKey);
     // delete device
-    await ttnApplication.deleteDevice(devId).then(() => {
-        console.log("Deleted done!");
-        socket.emit("ttnDeleteSucceeded", devID);
+    await ttnApplication.deleteDevice(devId)
+    .then((e) => {
+        socket.emit("ttnDeleteSucceeded");
     }).catch(function (err) {
         console.log("Deleted fail: ", err.details);
         socket.emit("ttnDeleteFail", err.details);
