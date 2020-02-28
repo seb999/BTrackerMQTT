@@ -4,6 +4,7 @@
 // - We create a Express server to run this on port 4001
 
 //Settings
+const smsService = require("./routes/smsService");
 const appId = '628799427265176';
 const accessKey = 'ttn-account-v2.llxrO7pihjYSaatgK--0dEYPb0yIxUVaMh5Isqq95Xo';
 const url = 'eu.thethings.network:1883';
@@ -22,14 +23,18 @@ app.use(indexPage);
 const server = http.createServer(app);
 server.listen(port, () => console.log(`Listening on port ${port}`));
 
+//Create Socket.IO server
 const socket = require("socket.io")(server, { handlePreflightRequest: (req, res) => { const headers = { "Access-Control-Allow-Headers": "Content-Type, Authorization", "Access-Control-Allow-Origin": req.headers.origin, "Access-Control-Allow-Credentials": true }; res.writeHead(200, headers); res.end(); } });
 
-//Create ttnClient
+//Create ttnClient object
 const ttnClient = new ttn.DataClient(appId, accessKey, url);
+
+//Send sms if TTN detect motion
+smsService.sendNotification(ttnClient);
 
 var socketlist = [];
 
-//Open connection to BTrackerWEB and BTrackerAPP
+//Open ttnClient connection from BTrackerWEB and BTrackerAPP
 socket.on("connection", socket => {
     socketlist.push(socket);
     //socket.Disconnect(true);
@@ -49,8 +54,8 @@ socket.on("connection", socket => {
         regiterDevice(payload);
     });
 
-     //Subscribe to UPDATE tracker from BTracker
-     socket.on('ttnUpdateDevice', function (payload) {
+    //Subscribe to UPDATE tracker from BTracker
+    socket.on('ttnUpdateDevice', function (payload) {
         console.log("Update device", payload);
         updateDevice(payload);
     });
@@ -61,9 +66,9 @@ socket.on("connection", socket => {
         deleteDevice(payload);
     });
 
-    socket.on('disconnect', function() {
+    socket.on('disconnect', function () {
         console.log('Disconnected')
-      })
+    })
 });
 
 /////////////////////////////////////
@@ -110,7 +115,7 @@ const updateDevice = async function (payload) {
     const devDescription = obj2.Description;
     const devID = obj2.devID
     const euis = await ttnApplication.getEUIs();
-   
+
 
     // register a new device
     await ttnApplication.updateDevice(devID, {
@@ -136,10 +141,13 @@ const deleteDevice = async function (devId) {
     const ttnApplication = await ttn.application(appId, accessKey);
     // delete device
     await ttnApplication.deleteDevice(devId)
-    .then((e) => {
-        socket.emit("ttnDeleteSucceeded");
-    }).catch(function (err) {
-        console.log("Deleted fail: ", err.details);
-        socket.emit("ttnDeleteFail", err.details);
-    })
+        .then((e) => {
+            socket.emit("ttnDeleteSucceeded");
+        }).catch(function (err) {
+            console.log("Deleted fail: ", err.details);
+            socket.emit("ttnDeleteFail", err.details);
+        })
+
+    // //Debug
+    // socket.emit("ttnDeleteSucceeded");
 }
