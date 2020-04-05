@@ -1,33 +1,31 @@
-//BTracker MQTT Application
-// - We have a ttnClient communicate with the Thing Network
-// - We have socket.io to communicate with BtrackerWEB and BTrackerAPP
-// - We create a Express server to run this on port 4001
-
-//Settings
-const smsService = require("./routes/smsService");
-const appId = '628799427265176';
-const accessKey = 'ttn-account-v2.llxrO7pihjYSaatgK--0dEYPb0yIxUVaMh5Isqq95Xo';
-const url = 'eu.thethings.network:1883';
-
 //Required module
+const smsService = require("./routes/smsService");
 const ttn = require('ttn');
 const express = require("express");
 const http = require("http");
 const uuidv1 = require('uuid/v1');
 
-//Create Express server
+////////////////////////////////////////
+//The Thing Network WebSocket client  //
+////////////////////////////////////////
+//Settings TTN (The Thing Network)
+const appId = '628799427265176';
+const accessKey = 'ttn-account-v2.llxrO7pihjYSaatgK--0dEYPb0yIxUVaMh5Isqq95Xo';
+const url = 'eu.thethings.network:1883';
+const ttnClient = new ttn.DataClient(appId, accessKey, url);
+
+//////////////////////////////////////////////////////////////////////////////
+//BTracket WebSocket server to communicate with BTracketApp and BTrackerWeb //
+//////////////////////////////////////////////////////////////////////////////
+//Create Express server and WebSocket
 const port = process.env.PORT || 4001;
 const indexPage = require("./routes/index");
 const app = express();
 app.use(indexPage);
 const server = http.createServer(app);
 server.listen(port, () => console.log(`Listening on port ${port}`));
-
 //Create Socket.IO server
-const socket = require("socket.io")(server, { handlePreflightRequest: (req, res) => { const headers = { "Access-Control-Allow-Headers": "Content-Type, Authorization", "Access-Control-Allow-Origin": req.headers.origin, "Access-Control-Allow-Credentials": true }; res.writeHead(200, headers); res.end(); } });
-
-//Create ttnClient object
-const ttnClient = new ttn.DataClient(appId, accessKey, url);
+const btracketWebSocket = require("socket.io")(server, { handlePreflightRequest: (req, res) => { const headers = { "Access-Control-Allow-Headers": "Content-Type, Authorization", "Access-Control-Allow-Origin": req.headers.origin, "Access-Control-Allow-Credentials": true }; res.writeHead(200, headers); res.end(); } });
 
 //Send sms if TTN detect motion
 smsService.sendNotification(ttnClient);
@@ -35,41 +33,50 @@ smsService.sendNotification(ttnClient);
 var socketlist = [];
 
 //Open ttnClient connection from BTrackerWEB and BTrackerAPP
-socket.on("connection", socket => {
-    socketlist.push(socket);
+btracketWebSocket.on("connection", btracketWebSocket => {
+    //DEBUG
+    socketlist.push(btracketWebSocket);
+    console.log("subscribe again", socketlist.length);
     //socket.Disconnect(true);
     //process.exit(1)
-    console.log("subscribe again", socketlist.length);
-    //Subscribe to uplink event from TheThinNetwork
+
+    //on data coming from The Thing Network
     ttnClient.on("uplink", function (devID, payload) {
         console.log("Received uplink from : ", devID)
-        obj = JSON.stringify(payload);
-        obj2 = JSON.parse(obj);
-        socket.emit("ttnMotionDetected", obj2.hardware_serial);
+        notifyClientMotionDetected(payload);
     })
 
-    //Subscribe to ADD tracker from BTrackerX
-    socket.on('ttnAddDevice', function (payload) {
+    //Subscribe to ADD tracker from BTrackerWeb and BtrackerApp
+    btracketWebSocket.on('ttnAddDevice', function (payload) {
         console.log("Add new device", payload);
         regiterDevice(payload);
     });
 
-    //Subscribe to UPDATE tracker from BTracker
-    socket.on('ttnUpdateDevice', function (payload) {
+    //Subscribe to UPDATE tracker from BTrackerWeb and BtrackerApp
+    btracketWebSocket.on('ttnUpdateDevice', function (payload) {
         console.log("Update device", payload);
         updateDevice(payload);
     });
 
-    //Subscribe to DELETE tracker from BTracker
-    socket.on('ttnDeleteDevice', function (payload) {
+    //Subscribe to DELETE tracker from BTrackerWeb and BtrackerApp
+    btracketWebSocket.on('ttnDeleteDevice', function (payload) {
         console.log("Delete device", payload);
         deleteDevice(payload);
     });
 
-    socket.on('disconnect', function () {
+    btracketWebSocket.on('disconnect', function () {
         console.log('Disconnected')
     })
 });
+////////////////////////////////////////
+//Async method to Emit MOTION DETECTED//
+////////////////////////////////////////
+const notifyClientMotionDetected = async function (payload) {
+    obj = JSON.stringify(payload);
+    obj2 = JSON.parse(obj);
+    EUI = obj2.hardware_serial
+    btracketWebSocket.emit("ttnMotionDetected", EUI);
+}
 
 /////////////////////////////////////
 //Async method to REGISTER a device//
@@ -95,10 +102,10 @@ const regiterDevice = async function (payload) {
         appKey: ttn.key(16),
 
     }).then((e) => {
-        socket.emit("ttnAddSucceeded", devID);
+        btracketWebSocket.emit("ttnAddSucceeded", devID);
     }).catch(function (err) {
         console.log(err.details);
-        socket.emit("ttnAddFail", err.details);
+        btracketWebSocket.emit("ttnAddFail", err.details);
     })
 }
 
@@ -116,7 +123,6 @@ const updateDevice = async function (payload) {
     const devID = obj2.devID
     const euis = await ttnApplication.getEUIs();
 
-
     // register a new device
     await ttnApplication.updateDevice(devID, {
         description: devDescription,
@@ -127,10 +133,10 @@ const updateDevice = async function (payload) {
         appKey: ttn.key(16),
 
     }).then((e) => {
-        socket.emit("ttnUpdateSucceeded", devID);
+        btracketWebSocket.emit("ttnUpdateSucceeded", devID);
     }).catch(function (err) {
         console.log(err.details);
-        socket.emit("ttnUpdateFail", err.details);
+        btracketWebSocket.emit("ttnUpdateFail", err.details);
     })
 }
 
@@ -142,12 +148,9 @@ const deleteDevice = async function (devId) {
     // delete device
     await ttnApplication.deleteDevice(devId)
         .then((e) => {
-            socket.emit("ttnDeleteSucceeded");
+            btracketWebSocket.emit("ttnDeleteSucceeded");
         }).catch(function (err) {
             console.log("Deleted fail: ", err.details);
-            socket.emit("ttnDeleteFail", err.details);
+            btracketWebSocket.emit("ttnDeleteFail", err.details);
         })
-
-    // //Debug
-    // socket.emit("ttnDeleteSucceeded");
 }
