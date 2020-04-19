@@ -26,7 +26,7 @@ module.exports = {
             mySqlConnection.connect(function (err) {
                 if (err) throw err;
                
-                mySqlConnection.query("SELECT * FROM device where DeviceEUI='" + EUI + "'" + " and DeviceIsAlarmOn=1", function (err, result, fields) {
+                mySqlConnection.query("SELECT * FROM Device where DeviceEUI='" + EUI + "'" + " and DeviceIsAlarmOn=1", function (err, result, fields) {
                     if (err) throw err;
                     if (result.length > 0) {
                     
