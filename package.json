@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
-    "express": "4.17.1",
+    "express": "4.18.2",
     "mysql": "^2.18.1",
     "socket.io": "2.3.0",
     "textmagic-rest-client": "^1.0.10",
